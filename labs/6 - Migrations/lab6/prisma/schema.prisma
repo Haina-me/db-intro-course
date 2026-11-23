@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model address {
+  address_id  Int       @id @default(autoincrement())
+  customer_id Int
+  street      String    @db.VarChar(255)
+  city        String    @db.VarChar(100)
+  is_default  Boolean   @default(false)
+  deleted_at  DateTime? @db.Timestamp(6)
+  customer    customer  @relation(fields: [customer_id], references: [customer_id], onUpdate: NoAction)
+  orders      orders[]
+
+  @@unique([address_id, customer_id], map: "uq_address_customer")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model customer {
+  customer_id   Int            @id @default(autoincrement())
+  name          String         @db.VarChar(255)
+  email         String         @db.VarChar(255)
+  password_hash String         @db.VarChar(255)
+  phone         String         @db.VarChar(20)
+  deleted_at    DateTime?      @db.Timestamp(6)
+  address       address[]
+  orders        orders[]
+  payment_data  payment_data[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model order_product {
+  order_id          Int
+  product_id        Int
+  quantity          Int
+  price_at_purchase Decimal @db.Decimal(12, 2)
+  orders            orders  @relation(fields: [order_id], references: [order_id], onUpdate: NoAction)
+  product           product @relation(fields: [product_id], references: [product_id], onUpdate: NoAction)
+
+  @@id([order_id, product_id])
+}
+
+model orders {
+  order_id            Int                  @id @default(autoincrement())
+  customer_id         Int
+  payment_data_id     Int
+  shipping_address_id Int
+  shipping_method     shipping_method_enum
+  order_date          DateTime             @default(now()) @db.Timestamp(6)
+  status              order_status_enum    @default(Pending)
+  order_product       order_product[]
+  customer            customer             @relation(fields: [customer_id], references: [customer_id], onUpdate: NoAction)
+  payment_data        payment_data         @relation(fields: [payment_data_id, customer_id], references: [payment_data_id, customer_id], onUpdate: NoAction)
+  address             address              @relation(fields: [shipping_address_id, customer_id], references: [address_id, customer_id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model payment_data {
+  payment_data_id Int            @id @default(autoincrement())
+  customer_id     Int
+  card_type       card_type_enum
+  card_mask       String         @db.VarChar(20)
+  expiration_date String         @db.VarChar(5)
+  is_default      Boolean        @default(false)
+  deleted_at      DateTime?      @db.Timestamp(6)
+  orders          orders[]
+  customer        customer       @relation(fields: [customer_id], references: [customer_id], onUpdate: NoAction)
+
+  @@unique([payment_data_id, customer_id], map: "uq_payment_customer")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model product {
+  product_id     Int             @id @default(autoincrement())
+  name           String          @db.VarChar(255)
+  description    String?
+  price          Decimal         @db.Decimal(12, 2)
+  stock_quantity Int             @default(0)
+  deleted_at     DateTime?       @db.Timestamp(6)
+  order_product  order_product[]
+}
+
+enum card_type_enum {
+  Visa
+  Mastercard
+}
+
+enum order_status_enum {
+  Pending
+  Processing
+  Shipped
+  Delivered
+  Cancelled
+}
+
+enum shipping_method_enum {
+  NOVA_POSHTA @map("Нова Пошта")
+  UKRPOSHTA   @map("Укрпошта")
+  PICKUP      @map("Самовивіз")
+  COURIER     @map("Кур'єр")
+}
